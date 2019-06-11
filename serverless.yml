@@ -1,0 +1,40 @@
+service: ec2-status-checker
+
+provider:
+  name: aws
+  runtime: java8
+  stage: ${opt:stage, 'prod'}
+  region: ${opt:region, 'us-east-1'}
+  timeout: 60
+  versionFunctions: false
+  deploymentBucket:
+    name: ${self:provider.environment.BUCKET}
+    serverSideEncryption: AES256
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+       - ec2:DescribeInstanceStatus
+       - ec2:DescribeTags
+      Resource: "*"
+    - Effect: "Allow"
+      Action:
+       - "s3:*"
+      Resource:
+        - arn:aws:s3:::${self:provider.environment.BUCKET}/${self:provider.environment.DB_FOLDER_ON_S3}/*
+  environment:
+    REGION: ${self:provider.region}
+    BUCKET: ${opt:bucket, 'my-bucket-name'}
+    DB_FOLDER_ON_S3: "${self:service}/${self:provider.region}/${self:provider.stage}/data"
+    DB_FILE_ON_S3: "${self:provider.environment.DB_FOLDER_ON_S3}/instanceStatusDB.json"
+    SLACK_WEBHOOK_URL: ${opt:slack_webhook, 'my-webhook'}
+    INSTANCE_TAG_NAMES: ${opt:tags, 'Name,environment'}
+
+package:
+  artifact: target/ec2-status-checker-0.0.1.jar
+
+functions:
+  app:
+    handler: io.github.udaysagar2177.ec2StatusChecks.Handler
+    events:
+      - schedule: rate(1 minute)
+      - enabled: true
