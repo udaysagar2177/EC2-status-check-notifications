@@ -20,6 +20,7 @@ import com.github.seratch.jslack.api.webhook.Payload;
 import io.github.udaysagar2177.ec2StatusChecks.model.SerializableInstanceStatus;
 import io.github.udaysagar2177.ec2StatusChecks.model.SerializableInstanceStatusDetails;
 import io.github.udaysagar2177.ec2StatusChecks.model.SerializableInstanceStatusEvent;
+import io.github.udaysagar2177.ec2StatusChecks.model.SerializableInstanceStatusSummary;
 import io.github.udaysagar2177.ec2StatusChecks.statushandlers.InstanceStatusHandler;
 import software.amazon.awssdk.services.ec2.model.InstanceStatus;
 
@@ -65,11 +66,22 @@ public class PostInstanceStatusToSlackHandler implements InstanceStatusHandler {
             return false;
         }
         if (oldInstanceStatus == null) {
-            return !isCompleted(newInstanceStatus);
+            if (isCompleted(newInstanceStatus)) {
+                return false;
+            }
+            return checkForFailedStatus(newInstanceStatus.getInstanceStatus())
+                    || checkForFailedStatus(newInstanceStatus.getSystemStatus());
         }
         Set<SerializableInstanceStatusEvent> newEvents = new HashSet<>(newInstanceStatus.getEvents());
         Set<SerializableInstanceStatusEvent> oldEvents = new HashSet<>(oldInstanceStatus.getEvents());
         return !newEvents.equals(oldEvents);
+    }
+
+    private boolean checkForFailedStatus(SerializableInstanceStatusSummary instanceStatusSummary) {
+        return instanceStatusSummary.getDetails()
+                .stream()
+                .map(SerializableInstanceStatusDetails::getStatus)
+                .anyMatch(s -> s.contains("Status: failed"));
     }
 
     private boolean isCompleted(SerializableInstanceStatus instanceStatus) {
